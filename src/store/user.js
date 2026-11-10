@@ -22,9 +22,15 @@ export const useUserStore = defineStore({
       removeToken()
       removeCode()
       this.$patch({
-        name: '',
-        role: {},
+        nickname: '',
+        username: '',
+        email: '',
+        token: '',
+        role: '',
+        avatar: '',
+        route_names: [],
       })
+      localStorage.removeItem('user_info')
     },
 
     saveUserData (userData) {
@@ -42,7 +48,6 @@ export const useUserStore = defineStore({
 
     async login (form) {
       const res = await login(form).catch(e => e)
-      console.log('login', res)
       if (!res.code) {
         useAppStore().loadConfig()
         const userData = res.data

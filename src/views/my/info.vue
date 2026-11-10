@@ -86,7 +86,18 @@
 
   }
 
-  const html = computed(_ => marked(appStore.setting.hello||''))
+  const sanitizeHtml = (dirty) => {
+    if (!dirty) return ''
+    return dirty
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+      .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+      .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, '')
+      .replace(/ on\w+\s*=\s*(?:["'][^"']*["']|[^\s>]+)/gi, '')
+      .replace(/href\s*=\s*["']\s*javascript:[^"']*["']/gi, 'href="#"')
+  }
+
+  const html = computed(_ => sanitizeHtml(marked(appStore.setting.hello || '')))
 
 </script>
 

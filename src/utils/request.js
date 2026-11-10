@@ -69,7 +69,7 @@ service.interceptors.response.use(
         duration: 5 * 1000,
       })
 
-      if (res.code === 403) {
+      if (res.code === 403 || res.code === 401 || (res.code === 101 && (res.message && (res.message.includes('Token') || res.message.includes('token'))))) {
         removeToken()
         window.location.reload()
       }
@@ -79,6 +79,10 @@ service.interceptors.response.use(
     }
   },
   error => {
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      removeToken()
+      window.location.reload()
+    }
     if (error.code === 'ECONNABORTED'
       && error.message.indexOf('timeout') > -1) {
       error.message = 'Connection Time Out!'

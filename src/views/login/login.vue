@@ -83,11 +83,17 @@
 
   const captchaCode = ref('')
   const redirect = route.query?.redirect
+  const getSafeRedirect = (url) => {
+    if (typeof url === 'string' && url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/\\')) {
+      return url
+    }
+    return '/'
+  }
   const login = async () => {
     const res = await userStore.login(form).catch(e => e)
     if (!res.code) {
       ElMessage.success(T('LoginSuccess'))
-      router.push({ path: redirect || '/', replace: true })
+      router.push({ path: getSafeRedirect(redirect), replace: true })
       return
     }
     if (res.code === 110) {
