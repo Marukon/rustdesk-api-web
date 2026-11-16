@@ -1,15 +1,16 @@
 <template>
-  <el-scrollbar class="scroll-sidebar" height="100vh">
-    <menus></menus>
+  <el-scrollbar class="scroll-sidebar" :height="drawer ? '100%' : '100vh'">
+    <menus :drawer="drawer" />
   </el-scrollbar>
 </template>
 <script>
   import Menus from '@/layout/components/menu/index.vue'
-  import { defineComponent, ref, onMounted } from 'vue'
+  import { defineComponent } from 'vue'
 
   export default defineComponent({
     name: 'GAside',
     components: { Menus },
+    props: { drawer: Boolean },
   })
 </script>
 

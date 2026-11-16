@@ -32,13 +32,10 @@
   import { reactive, ref } from 'vue'
   import { ElMessage } from 'element-plus'
   import { T } from '@/utils/i18n'
-  import { useRoute, useRouter } from 'vue-router'
+  import { useRouter } from 'vue-router'
   import { register } from '@/api/user'
-  import { useUserStore } from '@/store/user'
-  import { useAppStore } from '@/store/app'
 
   const router = useRouter()
-  const userStore = useUserStore()
   const form = reactive({
     username: '',
     email: '',
@@ -78,10 +75,8 @@
     if (!res) {
       return
     }
-    userStore.saveUserData(res.data)
-    useAppStore().loadConfig()
-    ElMessage.success('Submit')
-    router.push('/')
+    ElMessage.success(T('Account registered. Sign in from a RustDesk client.'))
+    router.push('/login')
   }
   const toLogin = () => {
     router.push('/login')

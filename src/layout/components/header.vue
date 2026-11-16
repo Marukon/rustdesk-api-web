@@ -1,8 +1,12 @@
 <template>
-  <el-icon class="ex-icon" @click="expandOrFoldSlider">
-    <el-icon-expand v-if="setting.sideIsCollapse"></el-icon-expand>
-    <el-icon-fold v-else></el-icon-fold>
-  </el-icon>
+  <button type="button" class="ex-icon" :aria-label="T('Navigation')"
+          :aria-expanded="mobileNavigation ? navigationOpen : !setting.sideIsCollapse"
+          :aria-controls="mobileNavigation ? 'mobile-navigation' : 'desktop-navigation'" @click="toggleNavigation">
+    <el-icon aria-hidden="true">
+      <el-icon-expand v-if="mobileNavigation || setting.sideIsCollapse"></el-icon-expand>
+      <el-icon-fold v-else></el-icon-fold>
+    </el-icon>
+  </button>
   <div class="header-logo">
     <img :src="setting.logo" alt="" class="logo">
     <div class="title">{{setting.title}}</div>
@@ -12,26 +16,26 @@
 
 <script>
   import { defineComponent, computed } from 'vue'
-  import HeaderMenu from '@/layout/components/menu/index.vue'
   import Setting from '@/layout/components/setting/index.vue'
   import { useAppStore } from '@/store/app'
-  import GTags from '@/layout/components/tags/index.vue'
+  import { T } from '@/utils/i18n'
 
   export default defineComponent({
     name: 'LayerHeader',
-    created () {
-    },
-    components: { HeaderMenu, Setting, GTags },
-    watch: {},
-    setup (props) {
+    components: { Setting },
+    props: { mobileNavigation: Boolean, navigationOpen: Boolean },
+    emits: ['open-navigation'],
+    setup (props, { emit }) {
       const appStore = useAppStore()
       const setting = computed(() => appStore.setting)
-      const expandOrFoldSlider = () => {
-        appStore.sideCollapse()
+      const toggleNavigation = () => {
+        if (props.mobileNavigation) emit('open-navigation')
+        else appStore.sideCollapse()
       }
       return {
         setting,
-        expandOrFoldSlider,
+        toggleNavigation,
+        T,
       }
     },
 
@@ -40,22 +44,34 @@
 
 <style scoped lang="scss">
   .ex-icon {
-    height: 100%;
+    flex: 0 0 44px;
+    min-height: 40px;
+    align-self: center;
     display: flex;
     align-items: center;
     margin-right: 10px;
+    justify-content: center;
     font-size: 16px;
     cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    color: inherit;
   }
+  .ex-icon:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
 
   .header-logo {
     display: flex;
+    min-width: 0;
     height: 100%;
     align-items: center;
 
     .title {
       display: block;
       margin-left: 10px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     .logo {

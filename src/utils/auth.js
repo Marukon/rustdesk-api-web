@@ -12,7 +12,10 @@ export function setToken (token) {
 }
 
 export function removeToken () {
-  localStorage.removeItem(`wc-option:local:access_token`)
+  const webClientToken = 'wc-option:local:access_token'
+  if (getToken() === localStorage.getItem(webClientToken)) {
+    localStorage.removeItem(webClientToken)
+  }
   return localStorage.removeItem(TokenKey)
 }
 

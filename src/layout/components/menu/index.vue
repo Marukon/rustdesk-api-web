@@ -1,6 +1,6 @@
 <template>
   <el-menu
-          class="menus"
+          :class="['menus', { 'drawer-menu': drawer }]"
           :collapse="isCollapse"
           :default-active="activeIndex"
           background-color="#2d3a4b"
@@ -13,7 +13,7 @@
 </template>
 
 <script>
-  import { defineComponent, ref, onMounted, watch, computed } from 'vue'
+  import { defineComponent, ref, computed } from 'vue'
   import { useRouteStore } from '@/store/router'
   import MenuItem from '@/layout/components/menu/item.vue'
   import { useRoute } from 'vue-router'
@@ -24,11 +24,12 @@
     created () {
     },
     components: { MenuItem },
-    setup () {
+    props: { drawer: Boolean },
+    setup (props) {
       const routes = ref([])
       const route = useRoute()
       const app = useAppStore()
-      const isCollapse = computed(() => app.setting.sideIsCollapse)
+      const isCollapse = computed(() => !props.drawer && app.setting.sideIsCollapse)
       const activeIndex = computed(() => route.name)
 
       routes.value = useRouteStore().routes
@@ -51,6 +52,7 @@
     }
 
   }
+  .drawer-menu { min-height: 100%; }
 </style>
 <style>
 </style>

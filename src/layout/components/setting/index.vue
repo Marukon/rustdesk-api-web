@@ -45,7 +45,7 @@
       <template #dropdown>
         <el-dropdown-menu>
           <el-dropdown-item @click="showChangePwd">{{ T('ChangePassword') }}</el-dropdown-item>
-          <el-dropdown-item @click="logout">{{ T('Logout') }}</el-dropdown-item>
+          <el-dropdown-item :disabled="loggingOut" @click="logout">{{ T('Logout') }}</el-dropdown-item>
         </el-dropdown-menu>
       </template>
     </el-dropdown>
@@ -61,14 +61,27 @@
   import { T } from '@/utils/i18n'
   import { useDark } from '@vueuse/core'
   import { Sunny, Moon } from '@element-plus/icons'
+  import { logout as revokeSession } from '@/api/login'
+  import { useRouter } from 'vue-router'
 
   const userStore = useUserStore()
   const user = userStore
   const appStore = useAppStore()
+  const router = useRouter()
+  const loggingOut = ref(false)
 
-  const logout = () => {
-    userStore.logout()
-    window.location.reload()
+  const logout = async () => {
+    if (loggingOut.value) return
+    loggingOut.value = true
+    try {
+      await revokeSession()
+      userStore.logout()
+      await router.replace('/login')
+    } catch {
+      // Keep the session available to retry; the request handler reports the error.
+    } finally {
+      loggingOut.value = false
+    }
   }
 
   const changePwdVisible = ref(false)
@@ -92,8 +105,9 @@
   .menu-item {
     margin-left: 15px;
 
-    * {
-      outline: none;
+    :focus-visible {
+      outline: 2px solid #93c5fd;
+      outline-offset: 3px;
     }
   }
 
@@ -106,6 +120,10 @@
 
     .nickname {
       padding: 0 10px;
+      max-width: clamp(72px, 18vw, 180px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 }

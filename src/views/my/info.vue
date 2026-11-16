@@ -31,7 +31,7 @@
       </el-form>
     </el-card>
     <el-card shadow="hover" style="margin-top: 20px">
-      <div v-html="html"></div>
+      <div ref="announcement"></div>
     </el-card>
     <changePwdDialog v-model:visible="changePwdVisible"></changePwdDialog>
   </div>
@@ -39,7 +39,7 @@
 
 <script setup>
   import changePwdDialog from '@/components/changePwdDialog.vue'
-  import { computed, ref } from 'vue'
+  import { ref, watchEffect } from 'vue'
   import { useUserStore } from '@/store/user'
   import { useAppStore } from '@/store/app'
   import { bind, unbind } from '@/api/oauth'
@@ -86,24 +86,45 @@
 
   }
 
-  const sanitizeHtml = (dirty) => {
-    if (!dirty) return ''
-    return dirty
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-      .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
-      .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, '')
-      .replace(/ on\w+\s*=\s*(?:["'][^"']*["']|[^\s>]+)/gi, '')
-      .replace(/href\s*=\s*["']\s*javascript:[^"']*["']/gi, 'href="#"')
-  }
-
-  const html = computed(_ => sanitizeHtml(marked(appStore.setting.hello || '')))
+  const announcement = ref(null)
+  const elements = [
+    'a', 'b', 'blockquote', 'br', 'caption', 'code', 'dd', 'del', 'details', 'div',
+    'dl', 'dt', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'li',
+    'ol', 'p', 'pre', 's', 'span', 'strong', 'summary', 'table', 'tbody', 'td',
+    'tfoot', 'th', 'thead', 'tr', 'ul',
+  ]
+  const attributes = ['alt', 'class', 'colspan', 'height', 'href', 'open', 'rowspan', 'src', 'start', 'title', 'width']
+  watchEffect(async (onCleanup) => {
+    const element = announcement.value
+    const html = marked(appStore.setting.hello || '')
+    if (!element) return
+    if (typeof element.setHTML === 'function') {
+      element.setHTML(html, { sanitizer: { elements, attributes } })
+      return
+    }
+    let stale = false
+    onCleanup(() => { stale = true })
+    try {
+      const { default: purifier } = await import('dompurify')
+      if (stale) return
+      element.replaceChildren(purifier.sanitize(html, {
+        ALLOWED_TAGS: [...elements, '#text'],
+        ALLOWED_ATTR: attributes,
+        ALLOW_ARIA_ATTR: false,
+        ALLOW_DATA_ATTR: false,
+        KEEP_CONTENT: false,
+        RETURN_DOM_FRAGMENT: true,
+      }))
+    } catch {
+      if (!stale) element.textContent = appStore.setting.hello || ''
+    }
+  }, { flush: 'post' })
 
 </script>
 
 <style scoped lang="scss">
 .info-form {
-  width: 600px;
+  max-width: 600px;
   margin: 0 auto;
 
 }

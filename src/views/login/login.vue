@@ -1,60 +1,87 @@
 <template>
-  <div class="login-container">
-    <div class="login-card">
-      <img src="@/assets/logo.png" alt="logo" class="login-logo"/>
-
-      <el-form v-if="!disablePwd" label-position="top" class="login-form">
-        <el-form-item :label="T('Username')">
-          <el-input v-model="form.username" type="username" class="login-input"></el-input>
-        </el-form-item>
-
-        <el-form-item :label="T('Password')">
-          <el-input v-model="form.password" type="password" @keyup.enter.native="login" show-password
-                    class="login-input"></el-input>
-        </el-form-item>
-        <el-form-item :label="T('Captcha')" v-if="captchaCode">
-          <el-input v-model="form.captcha" @keyup.enter.native="login"  class="login-input captcha-input">
-            <template #append>
-              <img :src="captchaCode.b64" @click="loadCaptcha" class="captcha" alt="captcha"/>
-            </template>
-          </el-input>
-        </el-form-item>
-        <el-form-item>
-          <el-button @click="login" type="primary" class="login-button">{{ T('Login') }}</el-button>
-          <el-button v-if="allowRegister" @click="register" class="login-button">{{ T('Register') }}</el-button>
-        </el-form-item>
-      </el-form>
-
-      <div class="divider" v-if="options.length > 0 && !disablePwd">
-        <span>{{ T('or login in with') }}</span>
-      </div>
-
-      <div class="oidc-options">
-        <div v-for="(option, index) in options" :key="index" class="oidc-option">
-          <el-button @click="handleOIDCLogin(option.name)" class="oidc-btn">
-            <img :src="getProviderImage(option.name)" alt="provider" class="oidc-icon"/>
-            <span>{{ T(option.name) }}</span>
-          </el-button>
+  <main class="login-container">
+    <div class="login-shell">
+      <div class="login-brand">
+        <div class="brand-lockup">
+          <img src="@/assets/logo.png" alt="" width="42" height="42"/>
+          <span>RustDesk</span>
         </div>
+        <p class="brand-title">{{ appStore.setting.title }}</p>
       </div>
+      <section class="login-card" aria-labelledby="login-title">
+        <h1 id="login-title">{{ T('Administrator sign-in') }}</h1>
+        <p class="login-intro">{{ T('Use an administrator account to open this console.') }}</p>
+        <p class="login-error" role="alert">{{ errorMessage }}</p>
+        <p v-if="loading" role="status" class="login-status">{{ T('Loading sign-in options…') }}</p>
+
+        <form v-if="!disablePwd && !loading" class="login-form" @submit.prevent="login" :aria-busy="busy">
+          <label for="admin-username">{{ T('Username') }}</label>
+          <input id="admin-username" v-model="form.username" name="username" autocomplete="username"
+                 autocapitalize="none" spellcheck="false" required />
+
+          <label for="admin-password">{{ T('Password') }}</label>
+          <div class="password-field">
+            <input id="admin-password" v-model="form.password" name="password"
+                   :type="showPassword ? 'text' : 'password'" autocomplete="current-password" required />
+            <button type="button" class="password-toggle" @click="showPassword = !showPassword">
+              {{ T(showPassword ? 'Hide password' : 'Show password') }}
+            </button>
+          </div>
+
+          <template v-if="needsCaptcha">
+            <label for="admin-captcha">{{ T('Captcha') }}</label>
+            <div class="captcha-field">
+              <input id="admin-captcha" v-model="form.captcha" name="captcha" autocomplete="off"
+                     autocapitalize="none" spellcheck="false" required />
+              <button type="button" class="captcha-button" :disabled="captchaLoading"
+                      :aria-label="T('Refresh') + ' ' + T('Captcha')" @click="loadCaptcha()">
+                <img v-if="captchaCode" :src="captchaCode.b64" alt="" />
+                <span v-else>{{ T('Refresh') }}</span>
+              </button>
+            </div>
+          </template>
+          <button type="submit" class="login-submit" :disabled="busy || (needsCaptcha && !captchaCode)">
+            {{ T(busy ? 'Signing in…' : 'Login') }}
+          </button>
+        </form>
+
+        <div v-if="options.length && !disablePwd" class="divider"><span>{{ T('or login in with') }}</span></div>
+        <div v-if="options.length" class="oidc-options">
+          <button v-for="option in options" :key="option" type="button" class="oidc-btn"
+                  :disabled="busy" @click="handleOIDCLogin(option)">
+            <img :src="getProviderImage(option)" alt="" width="22" height="22" />
+            {{ T(option) }}
+          </button>
+        </div>
+        <router-link v-if="allowRegister && !disablePwd" to="/register" class="register-link">
+          {{ T('Register a RustDesk client account') }}
+        </router-link>
+      </section>
     </div>
-  </div>
+  </main>
 </template>
 
 <script setup>
   import { reactive, onMounted, ref } from 'vue'
   import { useUserStore } from '@/store/user'
+  import { useAppStore } from '@/store/app'
   import { ElMessage } from 'element-plus'
   import { T } from '@/utils/i18n'
   import { useRoute, useRouter } from 'vue-router'
   import { loginOptions, captcha } from '@/api/login'
   import { getCode, removeCode } from '@/utils/auth'
 
-  const oauthInfo = ref({})
   const userStore = useUserStore()
+  const appStore = useAppStore()
   const route = useRoute()
   const router = useRouter()
-  const options = reactive([]) // 存储 OIDC 登录选项
+  const options = ref([])
+  const busy = ref(false)
+  const loading = ref(true)
+  const showPassword = ref(false)
+  const errorMessage = ref('')
+  const needsCaptcha = ref(false)
+  const captchaLoading = ref(false)
 
   let platform = window.navigator.platform
   if (navigator.platform.indexOf('Mac') === 0) {
@@ -68,10 +95,10 @@
   }
   const userAgent = navigator.userAgent
   let browser = 'Unknown Browser'
-  if (/chrome|crios/i.test(userAgent)) browser = 'Chrome'
+  if (/edg/i.test(userAgent)) browser = 'Edge'
+  else if (/chrome|crios/i.test(userAgent)) browser = 'Chrome'
   else if (/firefox|fxios/i.test(userAgent)) browser = 'Firefox'
   else if (/safari/i.test(userAgent) && !/chrome/i.test(userAgent)) browser = 'Safari'
-  else if (/edg/i.test(userAgent)) browser = 'Edge'
 
   const form = reactive({
     username: '',
@@ -81,223 +108,257 @@
     captcha_id: ''
   })
 
-  const captchaCode = ref('')
-  const redirect = route.query?.redirect
-  const getSafeRedirect = (url) => {
-    if (typeof url === 'string' && url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/\\')) {
-      return url
-    }
-    return '/'
+  const captchaCode = ref(null)
+  const errorText = (error) => error?.response?.data?.message || error?.response?.data?.error ||
+    error?.message || T('Sign-in is unavailable. Try again.')
+
+  const finishLogin = () => {
+    const redirect = route.query.redirect
+    const destination = typeof redirect === 'string' && /^\/(?![\/\\])[\S]*$/.test(redirect) ? redirect : '/'
+    ElMessage.success(T('LoginSuccess'))
+    return router.replace(destination)
   }
+
   const login = async () => {
-    const res = await userStore.login(form).catch(e => e)
-    if (!res.code) {
-      ElMessage.success(T('LoginSuccess'))
-      router.push({ path: getSafeRedirect(redirect), replace: true })
-      return
-    }
-    if (res.code === 110) {
-      // need captcha
-      loadCaptcha()
+    if (busy.value || (needsCaptcha.value && !captchaCode.value)) return
+    busy.value = true
+    errorMessage.value = ''
+    try {
+      await userStore.login(form)
+      form.password = ''
+      await finishLogin()
+    } catch (error) {
+      errorMessage.value = errorText(error)
+      if (error.code === 110 || needsCaptcha.value) await loadCaptcha()
+    } finally {
+      busy.value = false
     }
   }
 
   const loadCaptcha = async () => {
-    const captchaRes = await captcha().catch(_ => false)
-    console.log(captchaRes)
-    captchaCode.value = captchaRes.data.captcha
-    form.captcha_id = captchaRes.data.captcha.id
+    if (captchaLoading.value) return
+    needsCaptcha.value = true
+    captchaLoading.value = true
+    captchaCode.value = null
+    form.captcha = ''
+    form.captcha_id = ''
+    try {
+      const { data } = await captcha()
+      captchaCode.value = data.captcha
+      form.captcha_id = data.captcha.id
+    } catch (error) {
+      if (error.code === 101) {
+        const current = await loginOptions().catch(() => null)
+        if (current?.data?.need_captcha === false) {
+          needsCaptcha.value = false
+          return
+        }
+      }
+      errorMessage.value ||= errorText(error)
+    } finally {
+      captchaLoading.value = false
+    }
   }
 
-  const handleOIDCLogin = (provider) => {
-    userStore.oidc(provider, platform, browser)
+  const handleOIDCLogin = async (provider) => {
+    if (busy.value) return
+    busy.value = true
+    errorMessage.value = ''
+    try {
+      await userStore.oidc(provider, platform, browser)
+    } catch (error) {
+      errorMessage.value = errorText(error)
+    } finally {
+      busy.value = false
+    }
   }
 
   import googleImage from '@/assets/google.png'
   import githubImage from '@/assets/github.png'
   import oidcImage from '@/assets/oidc.png'
-  import webauthImage from '@/assets/webauth.png'
-  import defaultImage from '@/assets/oidc.png'
 
   const providerImageMap = {
     google: googleImage,
     github: githubImage,
     oidc: oidcImage,
-    // WebAuth: webauthImage,
-    default: defaultImage,
   }
 
   const getProviderImage = (provider) => {
-    return providerImageMap[provider.toLowerCase()] || providerImageMap.default
+    const key = provider.toLowerCase()
+    return Object.prototype.hasOwnProperty.call(providerImageMap, key) ? providerImageMap[key] : oidcImage
   }
 
   const allowRegister = ref(false)
   const disablePwd = ref(false)
-  const loadLoginOptions = async () => {
+  const loadLoginOptions = async (autoOIDC) => {
     try {
-      const res = await loginOptions().catch(_ => false)
-      if (!res || !res.data) return console.error('No valid response received')
-      res.data.ops.map(option => (options.push({ name: option }))) // 创建新的对象数组
-      if (res.data.auto_oidc) {
-        // 如果有自动OIDC登录选项，直接调用第一个
-        handleOIDCLogin(res.data.ops[0])
-      }
-      disablePwd.value = res.data.disable_pwd
-      allowRegister.value = res.data.register
-      if (res.data.need_captcha) {
-        loadCaptcha()
-      }
+      const { data } = await loginOptions()
+      options.value = data.ops || []
+      disablePwd.value = data.disable_pwd
+      allowRegister.value = data.register
+      if (data.need_captcha && !data.disable_pwd) await loadCaptcha()
+      if (autoOIDC && data.auto_oidc && options.value.length) await handleOIDCLogin(options.value[0])
     } catch (error) {
-      console.error('Error loading login options:', error.message)
+      errorMessage.value ||= errorText(error)
+    } finally {
+      loading.value = false
     }
   }
 
   onMounted(async () => {
+    const denied = route.query.oidc === 'denied'
+    if (denied) {
+      removeCode()
+      errorMessage.value = T('Only administrator accounts can sign in here.')
+      await router.replace({ path: '/login', query: { redirect: route.query.redirect } })
+    }
     const code = getCode()
     if (code) {
-      // 如果code存在，进行query获取user info
-      const res = await userStore.query(code)
-      if (res) {
-        // 删除code，确保跳转之前对code进行清楚
-        removeCode()
-        ElMessage.success(T('LoginSuccess'))
-        router.push({ path: redirect || '/', replace: true })
+      busy.value = true
+      try {
+        await userStore.query(code)
+        await finishLogin()
+        return
+      } catch (error) {
+        errorMessage.value = errorText(error)
+        if (error.response || error.code === 101) removeCode()
+      } finally {
+        busy.value = false
       }
-    } else {
-      // 如果code不存在, 现实登陆页面
-      loadLoginOptions() // 组件挂载后调用登录选项加载函数
     }
+    await loadLoginOptions(!code && !denied)
   })
-
-  const register = () => {
-    router.push('/register')
-  }
 </script>
 
 <style scoped lang="scss">
 .login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background-color: #2d3a4b;
-  padding: 20px;
+  --ink: #16263b;
+  --muted: #52647a;
+  --line: #c8d5e2;
+  --accent: #1455a5;
+  --surface: #fff;
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
+  padding: clamp(16px, 4vw, 48px);
+  background: radial-gradient(ellipse at 20% 15%, #e7f4ff, transparent 57%), #eef2f7;
   box-sizing: border-box;
+  color: var(--ink);
 }
 
-.login-card {
-  width: 360px;
-  background-color: #283342;
-  padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  text-align: center;
+.login-shell {
+  width: min(100%, 860px);
+  display: grid;
+  grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr);
+  border: 1px solid #d5e0ec;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 20px 70px #122e481a;
+  background: var(--surface);
 }
 
-h1 {
-  margin-bottom: 20px;
-  font-size: 24px;
-  font-weight: bold;
-}
-
-.login-form {
-  margin-bottom: 20px;
-}
-
-.login-input {
-  width: 100%;
-  .captcha{
-    cursor: pointer;
-    width: 150px;
-  }
-}
-.captcha-input{
-  :deep(.el-input-group__append) {
-    border-radius: 5px;
-    padding: 0;
-    overflow: hidden;
-  }
-}
-
-.login-button {
-  width: 100%;
-  height: 40px;
-  margin-bottom: 20px;
-  margin-left: 0;
-}
-
-.divider {
-  display: flex;
-  align-items: center;
-  margin: 20px 0;
-  font-size: 14px;
-  color: #888;
-
-  &::before,
-  &::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background-color: #ddd;
-  }
-
-  &::before {
-    margin-right: 10px;
-  }
-
-  &::after {
-    margin-left: 10px;
-  }
-}
-
-.oidc-options {
+.login-brand {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 48px;
+  padding: clamp(24px, 4.8vw, 58px);
+  background: radial-gradient(ellipse at 8% 105%, #194982, transparent 75%), #102844;
+  color: #fff;
 }
 
-.oidc-btn {
+.brand-lockup {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
+  gap: 12px;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.brand-lockup img { object-fit: contain; }
+.brand-title {
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(1.85rem, 4vw, 3.4rem);
+  line-height: 1.05;
+  letter-spacing: -.025em;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.login-card { padding: clamp(24px, 5vw, 60px); }
+h1 { margin: 0; font-size: clamp(1.55rem, 3.2vw, 2.2rem); letter-spacing: -.025em; }
+.login-intro, .login-status { margin: 12px 0 24px; color: var(--muted); line-height: 1.5; }
+.login-error { color: #a0262f; font-weight: 600; line-height: 1.45; }
+.login-error:empty { margin: 0; }
+.login-form { display: grid; gap: 8px; }
+.login-form label { margin-top: 8px; font-size: .9rem; font-weight: 650; }
+.login-form input {
+  min-width: 0;
   width: 100%;
-  height: 50px;
-  background-color: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  color: black;
-  font-size: 14px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  min-height: 46px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 1rem;
 }
-
-.oidc-icon {
-  width: 24px;
-  height: 24px;
-  margin-right: 10px;
+.password-field, .captcha-field {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
 }
-
-.login-logo {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 20px;
-  display: block;
+.login-container :is(button, input, a):focus-visible {
+  outline: 3px solid #2e75c9;
+  outline-offset: 2px;
 }
+.login-container button {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--accent);
+  padding: 6px 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.login-container button:not(:disabled):hover { border-color: var(--accent); }
+.login-container button:disabled { opacity: .62; cursor: default; }
+.captcha-button img { display: block; width: 100px; height: auto; }
+.login-container .login-submit {
+  margin-top: 12px;
+  min-height: 48px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.login-container .login-submit:not(:disabled):hover { background: #104783; }
+.divider { display: flex; align-items: center; gap: 12px; margin: 24px 0 12px; color: var(--muted); font-size: .88rem; }
+.divider::before, .divider::after { content: ''; height: 1px; flex: 1; background: var(--line); }
+.oidc-options { display: grid; gap: 8px; }
+.oidc-btn { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.oidc-btn img { object-fit: contain; }
+.register-link { display: inline-block; margin-top: 22px; color: var(--accent); font-size: .9rem; text-underline-offset: .2em; }
 
-.el-form-item {
-  ::v-deep(.el-form-item__label) {
-    color: #fff;
-  }
+:global(html.dark) .login-container {
+  --surface: #172436;
+  --ink: #f0f6ff;
+  --muted: #b4c5da;
+  --line: #536a84;
+  --accent: #aacfff;
+  background: #0c1522;
+}
+:global(html.dark) .login-shell { border-color: var(--line); }
+:global(html.dark) .login-error { color: #ffb6b9; }
+:global(html.dark) .login-container .login-submit { background: #1757a4; border-color: #719ce1; }
 
-  .el-input {
-    ::v-deep(.el-input__wrapper) {
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: transparent;
-    }
-
-    ::v-deep(input) {
-      color: #fff;
-    }
-  }
+@media (max-width: 640px) {
+  .login-shell { grid-template-columns: minmax(0, 1fr); }
+  .login-brand { gap: 14px; }
+  .brand-title { max-width: none; font-size: 1.3rem; letter-spacing: 0; }
 }
 </style>

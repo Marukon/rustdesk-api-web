@@ -1,4 +1,15 @@
 {
+  "Administrator sign-in": {"One": "管理員登入"},
+  "Use an administrator account to open this console.": {"One": "使用管理員帳號進入管理後台。"},
+  "Loading sign-in options…": {"One": "正在載入登入方式…"},
+  "Show password": {"One": "顯示密碼"},
+  "Hide password": {"One": "隱藏密碼"},
+  "Signing in…": {"One": "正在登入…"},
+  "Sign-in is unavailable. Try again.": {"One": "暫時無法登入，請重試。"},
+  "Only administrator accounts can sign in here.": {"One": "此處僅允許管理員帳號登入。"},
+  "Register a RustDesk client account": {"One": "註冊 RustDesk 用戶端帳號"},
+  "Account registered. Sign in from a RustDesk client.": {"One": "帳號已註冊，請在 RustDesk 用戶端登入。"},
+  "Navigation": {"One": "導覽"},
   "Login": {
     "One": "登入"
   },

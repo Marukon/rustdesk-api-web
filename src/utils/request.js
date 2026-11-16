@@ -63,6 +63,7 @@ service.interceptors.response.use(
 
     // if the custom code is not 20000, it is judged as an error.
     if (res.code !== 0) {
+      if (response.config.loginFlow) return Promise.reject(res)
       ElMessage({
         message: res.message || 'error',
         type: 'error',
@@ -79,6 +80,7 @@ service.interceptors.response.use(
     }
   },
   error => {
+    if (error.config?.loginFlow) return Promise.reject(error)
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       removeToken()
       window.location.reload()

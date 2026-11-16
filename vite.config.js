@@ -48,6 +48,7 @@ const conf = {
               case 'axios':
               case 'element-plus':
               case '@element-plus':
+              case 'dompurify':
                 return '_' + arr[0]
               default :
                 return '__vendor'

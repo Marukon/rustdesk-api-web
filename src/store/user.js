@@ -47,15 +47,10 @@ export const useUserStore = defineStore({
     },
 
     async login (form) {
-      const res = await login(form).catch(e => e)
-      if (!res.code) {
-        useAppStore().loadConfig()
-        const userData = res.data
-        this.saveUserData(userData)
-        return userData
-      } else {
-        return Promise.reject(res)
-      }
+      const { data } = await login(form)
+      this.saveUserData(data)
+      useAppStore().loadConfig()
+      return data
     },
     async info () {
       const res = await current().catch(_ => false)
@@ -83,28 +78,22 @@ export const useUserStore = defineStore({
         op: provider, // 传入的 provider
         uuid: '',//crypto.randomUUID(), // 自动生成 UUID
       }
-      const res = await oidcAuth(data).catch(_ => false)
-      if (res) {
-        const { code, url } = res.data
-        setCode(code)
-        if (provider == 'webauth') {
-          window.open(url)
-        } else {
-          window.location.href = url
-        }
+      const res = await oidcAuth(data)
+      const { code, url } = res.data
+      setCode(code)
+      if (provider == 'webauth') {
+        window.open(url)
+      } else {
+        window.location.href = url
       }
     },
     async query (code) {
       const params = { 'code': code, uuid: '' }
-      const res = await oidcQuery(params).catch(_ => false)
-      if (res) {
-        removeCode()
-        useAppStore().loadConfig()
-        const userData = res.data
-        this.saveUserData(userData)
-        return userData
-      }
-      return false
+      const { data } = await oidcQuery(params)
+      removeCode()
+      this.saveUserData(data)
+      useAppStore().loadConfig()
+      return data
     },
   },
 })
